@@ -232,3 +232,35 @@ async def folder_file(command: str) -> str:
         return f"✅ File opened: {item['name']}"
 
     return "⚠ कुछ भी match नहीं हुआ।"
+
+@tool
+async def shutdown_pc() -> str:
+    """
+    Shuts down the computer.
+
+    Use this tool when the user asks to shut down or turn off the computer.
+    Example prompts:
+    - "PC band kar do"
+    - "Shutdown the computer"
+    """
+    try:
+        os.system("shutdown /s /t 1")
+        return "Shutting down the computer."
+    except Exception as e:
+        return f"Failed to shut down the computer: {e}"
+
+@tool
+async def reboot_pc() -> str:
+    """
+    Reboots the computer.
+
+    Use this tool when the user asks to reboot or restart the computer.
+    Example prompts:
+    - "PC restart kar do"
+    - "Reboot the computer"
+    """
+    try:
+        os.system("shutdown /r /t 1")
+        return "Rebooting the computer."
+    except Exception as e:
+        return f"Failed to reboot the computer: {e}"

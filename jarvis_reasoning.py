@@ -3,12 +3,15 @@ from langchain.agents import create_react_agent, AgentExecutor
 from dotenv import load_dotenv
 from Jarvis_google_search import google_search, get_current_datetime
 from jarvis_get_whether import get_weather
-from Jarvis_window_CTRL import open_app, close_app, folder_file
+from Jarvis_window_CTRL import open_app, close_app, folder_file, shutdown_pc, reboot_pc
 from Jarvis_file_opner import Play_file
 from keyboard_mouse_CTRL import (
     move_cursor_tool, mouse_click_tool, scroll_cursor_tool, 
     type_text_tool, press_key_tool, swipe_gesture_tool, 
     press_hotkey_tool, control_volume_tool)
+# New imports for email and web control
+from Jarvis_email_sender import send_email
+from Jarvis_web_controller import open_youtube_in_chrome
 from langchain import hub
 import asyncio
 from livekit.agents import function_tool
@@ -29,11 +32,11 @@ async def thinking_capability(query: str) -> dict:
     Takes a natural language query and executes the appropriate workflow.
     """
     
-    model = ChatGoogleGenerativeAI(model="gemini-2.0-flash")  # Updated model name
+    model = ChatGoogleGenerativeAI(model="gemini-2.0-flash")
     
     prompt = hub.pull("hwchase17/react")
     
-    # Define tools list once to avoid duplication
+    # Add the new tools to the tools list
     tools = [
         google_search,
         get_current_datetime,
@@ -49,7 +52,11 @@ async def thinking_capability(query: str) -> dict:
         press_key_tool,
         press_hotkey_tool,
         control_volume_tool,
-        swipe_gesture_tool
+        swipe_gesture_tool,
+        shutdown_pc,
+        reboot_pc,
+        send_email,         # <-- New tool
+        open_youtube_in_chrome       # <-- New tool
     ]
 
     agent = create_react_agent(
@@ -60,12 +67,11 @@ async def thinking_capability(query: str) -> dict:
 
     executor = AgentExecutor(
         agent=agent,
-        tools=tools,  # Use the same tools list
+        tools=tools,
         verbose=True
     )
 
     try:
-        # Use await instead of asyncio.run() since we're already in async context
         result = await executor.ainvoke({"input": query})
         return result
     except Exception as e:
