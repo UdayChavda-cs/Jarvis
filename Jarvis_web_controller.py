@@ -67,3 +67,19 @@ async def open_youtube_in_chrome(search_query: str = "") -> str:
             controller.deactivate()
         logger.error(f"❌ Failed during the YouTube opening process: {e}")
         return f"❌ An error occurred while trying to open YouTube in Chrome: {e}"
+
+@tool
+async def open_website(url: str) -> str:
+    """
+    Opens the given URL in the default web browser.
+
+    Use this tool when the user asks to open a specific website.
+    Example prompts:
+    - "Open google.com"
+    - "Can you open the Wikipedia page for me?"
+    """
+    try:
+        await asyncio.create_subprocess_shell(f'start "" "{url}"', shell=True)
+        return f"✅ Opening {url} in the default browser."
+    except Exception as e:
+        return f"❌ Failed to open the website: {e}"

@@ -3,7 +3,7 @@ from langchain.agents import create_react_agent, AgentExecutor
 from dotenv import load_dotenv
 from Jarvis_google_search import google_search, get_current_datetime
 from jarvis_get_whether import get_weather
-from Jarvis_window_CTRL import open_app, close_app, folder_file, shutdown_pc, reboot_pc
+from Jarvis_window_CTRL import open_app, close_app, folder_file, shutdown_pc, reboot_pc, sleep_pc
 from Jarvis_file_opner import Play_file
 from keyboard_mouse_CTRL import (
     move_cursor_tool, mouse_click_tool, scroll_cursor_tool, 
@@ -11,7 +11,7 @@ from keyboard_mouse_CTRL import (
     press_hotkey_tool, control_volume_tool)
 # New imports for email and web control
 from Jarvis_email_sender import send_email
-from Jarvis_web_controller import open_youtube_in_chrome
+from Jarvis_web_controller import open_youtube_in_chrome, open_website
 from langchain import hub
 import asyncio
 from livekit.agents import function_tool
@@ -26,7 +26,7 @@ load_dotenv()
         "opening/closing apps, accessing files, controlling mouse/keyboard, "
         "and system utilities."
 ))
-async def thinking_capability(query: str) -> dict:
+async def thinking_capability(query: str) -> str: # Changed return type hint to str
     """
     LangChain-powered reasoning and action tool.
     Takes a natural language query and executes the appropriate workflow.
@@ -55,8 +55,10 @@ async def thinking_capability(query: str) -> dict:
         swipe_gesture_tool,
         shutdown_pc,
         reboot_pc,
-        send_email,         # <-- New tool
-        open_youtube_in_chrome       # <-- New tool
+        sleep_pc,
+        send_email,
+        open_youtube_in_chrome,
+        open_website
     ]
 
     agent = create_react_agent(
@@ -73,6 +75,9 @@ async def thinking_capability(query: str) -> dict:
 
     try:
         result = await executor.ainvoke({"input": query})
-        return result
+        # --- THIS IS THE FIX ---
+        # Instead of returning the whole dictionary, we extract the 'output' string.
+        # .get() is used for safety in case the 'output' key is missing.
+        return result.get("output", "I encountered an error and could not find an answer.")
     except Exception as e:
-        return {"error": f"Agent execution failed: {str(e)}"}
+        return f"Agent execution failed: {str(e)}"

@@ -5,6 +5,12 @@ import sys
 import asyncio
 from fuzzywuzzy import process
 
+# Import ctypes for UAC elevation on Windows
+try:
+    import ctypes
+except ImportError:
+    ctypes = None
+
 try:
     import win32gui
     import win32con
@@ -24,6 +30,40 @@ sys.stdout.reconfigure(encoding='utf-8')
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# --- Helper Function for Admin Privileges (inside Jarvis_window_CTRL.py) ---
+def run_command_as_admin(command):
+    """
+    Executes a command with administrator privileges, prompting UAC if necessary.
+    """
+    if sys.platform != 'win32' or not ctypes:
+        return subprocess.run(command, shell=True)
+
+    try:
+        if ctypes.windll.shell32.IsUserAnAdmin() == 0:
+            logger.info(f"Requesting UAC elevation for command: '{command}'")
+            ret = ctypes.windll.shell32.ShellExecuteW(None, "runas", "cmd.exe", f"/c {command}", None, 1)
+            
+            if ret > 32:
+                return "✅ UAC prompt shown. The command is being executed with admin rights."
+            else:
+                # Log the specific error code for debugging
+                error_message = f"Failed to show UAC prompt. Windows error code: {ret}"
+                logger.error(error_message)
+                return f"❌ {error_message}"
+        else:
+            logger.info(f"Already admin. Executing command directly: '{command}'")
+            # Use capture_output to log any errors from the command
+            result = subprocess.run(command, shell=True, check=False, capture_output=True, text=True)
+            if result.returncode != 0:
+                error_output = result.stderr or result.stdout
+                logger.error(f"Command failed with return code {result.returncode}: {error_output.strip()}")
+                return f"❌ Command failed: {error_output.strip()}"
+            return f"✅ Command executed with existing admin rights."
+            
+    except Exception as e:
+        error_message = f"An exception occurred while trying to run command as admin: {e}"
+        logger.error(error_message)
+        return f"❌ {error_message}"
 # App command map
 APP_MAPPINGS = {
     "notepad": "notepad",
@@ -39,9 +79,7 @@ APP_MAPPINGS = {
     "Jio shpare browser": "C:\\Users\\Uday\\AppData\\Local\\JIO\\JioSphere\\Application\\JioSphere.exe"
 }
 
-# -------------------------
-# Global focus utility
-# -------------------------
+# (The rest of the file remains the same, but the power functions are updated)
 async def focus_window(title_keyword: str) -> bool:
     if not gw:
         logger.warning("⚠ pygetwindow")
@@ -125,7 +163,6 @@ async def delete_item(path):
 # App control
 @tool
 async def open_app(app_title: str) -> str:
-
     """
     open_app a desktop app like Notepad, Chrome, VLC, etc.
 
@@ -136,12 +173,10 @@ async def open_app(app_title: str) -> str:
     - "VLC media player चलाओ"
     - "Calculator launch करो"
     """
-
-
     app_title = app_title.lower().strip()
     app_command = APP_MAPPINGS.get(app_title, app_title)
     try:
-        await asyncio.create_subprocess_shell(f'start "" "{app_command}"', shell=True)
+        subprocess.Popen(f'start "" "{app_command}"', shell=True)
         focused = await focus_window(app_title)
         if focused:
             return f"🚀 App launch हुआ और focus में है: {app_title}."
@@ -152,7 +187,6 @@ async def open_app(app_title: str) -> str:
 
 @tool
 async def close_app(window_title: str) -> str:
-
     """
     Closes the applications window by its title.
 
@@ -163,23 +197,18 @@ async def close_app(window_title: str) -> str:
     - "Chrome की window बंद कर दो"
     - "Calculator को बंद करो"
     """
-
-
     if not win32gui:
         return "❌ win32gui"
-
     def enumHandler(hwnd, _):
         if win32gui.IsWindowVisible(hwnd):
             if window_title.lower() in win32gui.GetWindowText(hwnd).lower():
                 win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
-
     win32gui.EnumWindows(enumHandler, None)
-    return f"❌ Window बंद हो गई है।: {window_title}"
+    return f"✅ Sent close command to window: {window_title}"
 
 # Jarvis command logic
 @tool
 async def folder_file(command: str) -> str:
-
     """
     Handles folder and file actions like open, create, rename, or delete based on user command.
 
@@ -191,17 +220,13 @@ async def folder_file(command: str) -> str:
     - "Music folder खोलो"
     - "Resume.pdf चलाओ"
     """
-
-
     folders_to_index = ["D:/"]
     index = await index_items(folders_to_index)
     command_lower = command.lower()
-
     if "create folder" in command_lower:
         folder_name = command.replace("create folder", "").strip()
         path = os.path.join("D:/", folder_name)
         return await create_folder(path)
-
     if "rename" in command_lower:
         parts = command_lower.replace("rename", "").strip().split("to")
         if len(parts) == 2:
@@ -212,55 +237,42 @@ async def folder_file(command: str) -> str:
                 new_path = os.path.join(os.path.dirname(item["path"]), new_name)
                 return await rename_item(item["path"], new_path)
         return "❌ rename command valid नहीं है।"
-
     if "delete" in command_lower:
         item = await search_item(command, index, "folder") or await search_item(command, index, "file")
         if item:
             return await delete_item(item["path"])
         return "❌ Delete करने के लिए item नहीं मिला।"
-
     if "folder" in command_lower or "open folder" in command_lower:
         item = await search_item(command, index, "folder")
         if item:
             await open_folder(item["path"])
             return f"✅ Folder opened: {item['name']}"
         return "❌ Folder नहीं मिला।."
-
     item = await search_item(command, index, "file")
     if item:
         await play_file(item["path"])
         return f"✅ File opened: {item['name']}"
-
     return "⚠ कुछ भी match नहीं हुआ।"
+
+# --- UPDATED POWER FUNCTIONS ---
 
 @tool
 async def shutdown_pc() -> str:
     """
-    Shuts down the computer.
-
-    Use this tool when the user asks to shut down or turn off the computer.
-    Example prompts:
-    - "PC band kar do"
-    - "Shutdown the computer"
+    Shuts down the computer, requesting administrator permission if needed.
     """
-    try:
-        os.system("shutdown /s /t 1")
-        return "Shutting down the computer."
-    except Exception as e:
-        return f"Failed to shut down the computer: {e}"
+    return run_command_as_admin("shutdown /s /t 1")
 
 @tool
 async def reboot_pc() -> str:
     """
-    Reboots the computer.
-
-    Use this tool when the user asks to reboot or restart the computer.
-    Example prompts:
-    - "PC restart kar do"
-    - "Reboot the computer"
+    Reboots the computer, requesting administrator permission if needed.
     """
-    try:
-        os.system("shutdown /r /t 1")
-        return "Rebooting the computer."
-    except Exception as e:
-        return f"Failed to reboot the computer: {e}"
+    return run_command_as_admin("shutdown /r /t 1")
+
+@tool
+async def sleep_pc() -> str:
+    """
+    Puts the computer to sleep, requesting administrator permission if needed.
+    """
+    return run_command_as_admin("rundll32.exe powrprof.dll,SetSuspendState 0,1,0")
