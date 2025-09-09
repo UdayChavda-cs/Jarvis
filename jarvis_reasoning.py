@@ -15,7 +15,12 @@ from Jarvis_web_controller import open_youtube_in_chrome, open_website
 from langchain import hub
 import asyncio
 from livekit.agents import function_tool
+import logging # Import logging
+
 load_dotenv()
+
+# Get the logger
+logger = logging.getLogger(__name__)
 
 @function_tool(
     name="thinking_capability",
@@ -26,17 +31,19 @@ load_dotenv()
         "opening/closing apps, accessing files, controlling mouse/keyboard, "
         "and system utilities."
 ))
-async def thinking_capability(query: str) -> str: # Changed return type hint to str
+async def thinking_capability(query: str) -> str:
     """
     LangChain-powered reasoning and action tool.
     Takes a natural language query and executes the appropriate workflow.
     """
     
+    # --- ADDED LOGGING ---
+    logger.info(f"[Jarvis Reasoning] Received query: {query}")
+    
     model = ChatGoogleGenerativeAI(model="gemini-2.0-flash")
     
     prompt = hub.pull("hwchase17/react")
     
-    # Add the new tools to the tools list
     tools = [
         google_search,
         get_current_datetime,
@@ -75,9 +82,14 @@ async def thinking_capability(query: str) -> str: # Changed return type hint to 
 
     try:
         result = await executor.ainvoke({"input": query})
-        # --- THIS IS THE FIX ---
-        # Instead of returning the whole dictionary, we extract the 'output' string.
-        # .get() is used for safety in case the 'output' key is missing.
-        return result.get("output", "I encountered an error and could not find an answer.")
+        
+        final_output = result.get("output", "I encountered an error and could not find an answer.")
+        
+        # --- ADDED LOGGING ---
+        logger.info(f"[Jarvis Reasoning] Raw result from agent: {result}")
+        logger.info(f"[Jarvis Reasoning] Final output being sent to voice: {final_output}")
+        
+        return final_output
     except Exception as e:
+        logger.error(f"[Jarvis Reasoning] Agent execution failed: {e}")
         return f"Agent execution failed: {str(e)}"

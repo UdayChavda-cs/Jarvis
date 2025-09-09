@@ -8,6 +8,7 @@ from typing import List
 from livekit.agents import function_tool
 from langchain.tools import tool
 import codecs
+import pyperclip # Import the clipboard library
 
 # ---------------------
 # SafeController Class
@@ -89,27 +90,45 @@ class SafeController:
         # Fix: convert escaped sequences into real ones
         text = codecs.decode(text, "unicode_escape")
 
-        for char in text:
+        # --- SMART TYPING LOGIC ---
+        # If text is long, use clipboard to paste instantly.
+        if len(text) > 50:
+            self.log(f"Pasting long text (length: {len(text)})")
             try:
-                if char == "\n":
-                    self.keyboard.press(Key.enter)
-                    self.keyboard.release(Key.enter)
-                elif char == "\t":
-                    self.keyboard.press(Key.tab)
-                    self.keyboard.release(Key.tab)
-                elif char.isprintable():
-                    self.keyboard.press(char)
-                    self.keyboard.release(char)
-                else:
+                # Save original clipboard content
+                original_clipboard = pyperclip.paste()
+                # Copy new text and paste
+                pyperclip.copy(text)
+                await self.press_hotkey(['ctrl', 'v'])
+                # Restore original clipboard content
+                await asyncio.sleep(0.5) # Give paste a moment to complete
+                pyperclip.copy(original_clipboard)
+                return f"⌨️ Pasted long text: {text[:50]}..."
+            except Exception as e:
+                return f"❌ Clipboard paste failed: {e}"
+        # If text is short, type it out with a delay.
+        else:
+            for char in text:
+                try:
+                    if char == "\n":
+                        self.keyboard.press(Key.enter)
+                        self.keyboard.release(Key.enter)
+                    elif char == "\t":
+                        self.keyboard.press(Key.tab)
+                        self.keyboard.release(Key.tab)
+                    elif char.isprintable():
+                        self.keyboard.press(char)
+                        self.keyboard.release(char)
+                    else:
+                        continue
+
+                    await asyncio.sleep(0.05)
+
+                except Exception:
                     continue
-
-                await asyncio.sleep(0.05)
-
-            except Exception:
-                continue
-
-        self.log(f"Typed text: {text}")
-        return f"⌨️ Typed: {text}"
+            
+            self.log(f"Typed text: {text}")
+            return f"⌨️ Typed: {text}"
 
     async def press_key(self, key: str):
         if not self.is_active(): return "🛑 Controller is inactive."
@@ -329,4 +348,3 @@ async def swipe_gesture_tool(direction: str):
 
 
     return await with_temporary_activation(controller.swipe_gesture, direction)
-

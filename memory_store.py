@@ -97,7 +97,6 @@ class ConversationMemory:
     
     def _is_conversation_update(self, new_conv: Dict, last_conv: Dict) -> bool:
         """Check if new conversation is an update to the last one"""
-        # Simple heuristic: if timestamps are close and new conversation has more messages
         try:
             new_timestamp = datetime.fromisoformat(new_conv.get('timestamp', ''))
             last_timestamp = datetime.fromisoformat(last_conv.get('timestamp', ''))
@@ -113,18 +112,22 @@ class ConversationMemory:
             return False
     
     def get_recent_context(self, max_messages: int = 30) -> List[Dict]:
-        """Get recent conversation context for the agent"""
+        """
+        Get recent conversation context efficiently for the agent.
+        This new version ONLY loads messages from the most recent conversation session.
+        """
         memory = self.load_memory()
-        all_messages = []
-        
-        # Flatten all conversations into a single message list
-        for conversation in memory:
-            if "messages" in conversation:
-                all_messages.extend(conversation["messages"])
-        
-        # Return the most recent messages
-        recent_messages = all_messages[-max_messages:] if all_messages else []
-        logger.info(f"Retrieved {len(recent_messages)} recent messages for user {self.user_id}")
+        if not memory:
+            logger.info("No memory found, starting with a clean context.")
+            return []
+
+        # Get the last conversation block from the memory list
+        last_conversation = memory[-1]
+        all_messages = last_conversation.get("messages", [])
+
+        # Return the most recent messages from that last session
+        recent_messages = all_messages[-max_messages:]
+        logger.info(f"Retrieved {len(recent_messages)} recent messages from the last session for user {self.user_id}")
         return recent_messages
     
     def get_conversation_count(self) -> int:
