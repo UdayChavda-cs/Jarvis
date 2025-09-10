@@ -3,9 +3,8 @@ from dotenv import load_dotenv
 from livekit import agents
 from livekit.agents import Agent, AgentSession, JobContext, RoomInputOptions, ChatContext, ChatMessage, ChatRole
 from livekit.plugins import google, noise_cancellation
-from datetime import datetime # Import the datetime library
+from datetime import datetime
 
-# Import the new base prompt template
 from Jarvis_prompts import instructions_prompt, BASE_REPLY_PROMPT 
 from memory_store import ConversationMemory
 from jarvis_reasoning import thinking_capability
@@ -15,9 +14,6 @@ load_dotenv()
 USER_ID = "uday_chavda_main_user" 
 
 def get_dynamic_greeting_prompt():
-    """
-    Checks the current hour and builds a prompt with the correct greeting.
-    """
     hour = datetime.now().hour
     if 5 <= hour < 12:
         greeting = "फिर current समय के आधार पर user को greet कीजिए और बोलिए: 'Good morning!'"
@@ -35,10 +31,7 @@ class Assistant(Agent):
         for msg in recent_history_dicts:
             try:
                 role_str = str(msg.get("role", "user")).upper()
-                if "USER" in role_str:
-                    role = ChatRole.USER
-                else:
-                    role = ChatRole.ASSISTANT
+                role = ChatRole.USER if "USER" in role_str else ChatRole.ASSISTANT
                 
                 content = msg.get("text", "")
                 if isinstance(content, list):
@@ -75,7 +68,6 @@ async def entrypoint(ctx: JobContext):
         ),
     )
     
-    # Use the new dynamic greeting function to generate the prompt
     dynamic_greeting = get_dynamic_greeting_prompt()
     await session.generate_reply(
         instructions=dynamic_greeting
